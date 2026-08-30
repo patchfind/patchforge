@@ -1,0 +1,17 @@
+{
+  "_comment": "PUT /api/v1/settings/mcp-servers — GitHub's OFFICIAL remote MCP server, which ships in TrueForge's connector catalog.",
+  "_IMPORTANT": "TrueForge does NOT expand environment variables in this file. Replace ghp_REPLACE_WITH_YOUR_REAL_PAT with the literal token before sending, or you will store the placeholder verbatim and every turn fails with 'Authorization header is badly formatted'.",
+  "_format": "The header value must be the single word Bearer, one space, then the token. No braces, no $, no quotes around the token.",
+  "_ui": "Easier: Settings > Connectors > GitHub > Configure, and paste the PAT. The UI adds the Bearer prefix itself, so paste the RAW token there — not 'Bearer ghp_...'.",
+  "_scopes": "The PAT needs contents:write, pull_requests:write, metadata:read.",
+  "manifest": {
+    "type": "remote",
+    "name": "github",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "description": "Work with issues, pull requests, repository files, and CI status.",
+    "auth": {
+      "type": "header",
+      "headers": { "Authorization": "Bearer ghp_REPLACE_WITH_YOUR_REAL_PAT" }
+    }
+  }
+}

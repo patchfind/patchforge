@@ -1,0 +1,21 @@
+{
+  "_comment": "One PUT /api/v1/settings/skills per entry. Skills are git-only — TrueForge sparse-clones url+path@ref into the sandbox. There is no file upload.",
+  "_names": "Each `name` MUST match a value in SKILL_MAP in services/advisory-service/app/main.py, because that is what pool-monitor puts on the task payload.",
+  "_repo": "Replace ${SKILLS_REPO_URL} with the repo you push config/skills-repo/ to.",
+  "skills": [
+    { "manifest": { "type": "git", "name": "pyyaml", "url": "${SKILLS_REPO_URL}", "path": "skills/pyyaml", "ref": "main",
+      "description": "Migrating PyYAML off the unsafe yaml.load loader (CVE-2020-14343) and onto safe_load." } },
+    { "manifest": { "type": "git", "name": "jinja2", "url": "${SKILLS_REPO_URL}", "path": "skills/jinja2", "ref": "main",
+      "description": "Enabling Jinja2 autoescape to close XSS holes, and hardening template sandboxes." } },
+    { "manifest": { "type": "git", "name": "llama-index", "url": "${SKILLS_REPO_URL}", "path": "skills/llama-index", "ref": "main",
+      "description": "Migrating LlamaIndex 0.9 to 0.10+ after the llama_index.core namespace split." } },
+    { "manifest": { "type": "git", "name": "vllm", "url": "${SKILLS_REPO_URL}", "path": "skills/vllm", "ref": "main",
+      "description": "Upgrading vLLM across sampling and engine argument renames." } },
+    { "manifest": { "type": "git", "name": "ragas", "url": "${SKILLS_REPO_URL}", "path": "skills/ragas", "ref": "main",
+      "description": "Migrating Ragas 0.1 to 0.2 metric classes and EvaluationDataset column names." } },
+    { "manifest": { "type": "git", "name": "nemoguardrails", "url": "${SKILLS_REPO_URL}", "path": "skills/nemoguardrails", "ref": "main",
+      "description": "Upgrading NeMo Guardrails configs and Colang flows, and enabling the self-check rails." } },
+    { "manifest": { "type": "git", "name": "arize-phoenix", "url": "${SKILLS_REPO_URL}", "path": "skills/arize-phoenix", "ref": "main",
+      "description": "Moving Arize Phoenix tracing onto phoenix.otel and the OpenInference instrumentors." } }
+  ]
+}
