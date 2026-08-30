@@ -1,0 +1,162 @@
+name: patchforge
+
+networks:
+  patchforge-net:
+    name: patchforge-net
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+
+services:
+  # ---------------------------------------------------------------- infra ---
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: patchforge
+      POSTGRES_PASSWORD: patchforge
+      POSTGRES_DB: patchforge
+    ports: ['5432:5432']
+    volumes: ['postgres-data:/var/lib/postgresql/data']
+    networks: [patchforge-net]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U patchforge']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports: ['6379:6379']
+    volumes: ['redis-data:/data']
+    networks: [patchforge-net]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports: ['5672:5672', '15672:15672']
+    networks: [patchforge-net]
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # NOTE: there is deliberately no Daytona service here.
+  #
+  # The original plan called for a self-hosted `daytona-sandbox-daemon` on
+  # :3986, but TrueForge cannot be pointed at one: its sandbox-provider schema
+  # is strict and accepts only `api_key` — there is no endpoint field — and
+  # `toDaytonaSandboxProvider` constructs `new Daytona({ apiKey })` with no
+  # `apiUrl`. A local daemon would have nothing to talk to it.
+  # (The `daytonaio/daemon` image does not exist either.)
+  #
+  # Sandboxing therefore comes from TrueForge itself:
+  #   - STANDALONE=true  -> built-in local sandbox (see intro.md §3)
+  #   - or a Daytona Cloud api_key registered as the provider (intro.md §9)
+
+  # ------------------------------------------------------------ services ---
+  advisory-service:
+    build: ./services/advisory-service
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ADVISORY_CACHE_TTL: '86400'
+      # Set only when a bundle is mounted below; the client falls back to
+      # certifi / the image's own store when this is empty.
+      OSV_CA_BUNDLE: ${CA_BUNDLE_IN_CONTAINER:-}
+    volumes:
+      # A TLS-inspecting proxy signs public sites with an internal root that
+      # lives in the HOST trust store but not in the image's. Mounting the host
+      # bundle is what makes outbound HTTPS work behind one.
+      # Defaults to mounting the bundle over itself, which is a no-op elsewhere.
+      - ${HOST_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}:${CA_BUNDLE_IN_CONTAINER:-/etc/ssl/certs/ca-certificates.crt}:ro
+    ports: ['8081:8081']
+    networks: [patchforge-net]
+    depends_on:
+      redis: { condition: service_healthy }
+
+  pool-monitor:
+    build: ./services/pool-monitor
+    volumes:
+      # Falls back to raw.githubusercontent when the MCP gateway cannot serve a
+      # manifest, so it needs the host trust store on a TLS-inspecting network
+      # exactly like the other outbound services.
+      - ${HOST_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}:${CA_BUNDLE_IN_CONTAINER:-/etc/ssl/certs/ca-certificates.crt}:ro
+    environment:
+      PORT: '8080'
+      NODE_EXTRA_CA_CERTS: ${CA_BUNDLE_IN_CONTAINER:-/etc/ssl/certs/ca-certificates.crt}
+      POSTGRES_URL: postgresql://patchforge:patchforge@postgres:5432/patchforge
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      ADVISORY_SERVICE_URL: http://advisory-service:8081
+      # Optional: raises the GitHub rate limit and reaches private repos.
+      # Writes (branches, PRs) go through the GitHub MCP connector in TrueForge.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SCAN_CRON: ${SCAN_CRON:-0 */6 * * *}
+      SCAN_ON_BOOT: ${SCAN_ON_BOOT:-false}
+    ports: ['8080:8080']
+    networks: [patchforge-net]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  trueforge-harness:
+    build: ./services/trueforge-harness
+    # TrueForge normally runs OUTSIDE this compose project (its own container or
+    # `npx`), so the harness reaches it through the host. On Linux and WSL2
+    # `host.docker.internal` does not exist unless it is mapped here — without
+    # this every task dies with a bare "fetch failed".
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      PORT: '3000'
+      WS_PORT: '3001'
+      TRUEFOUNDRY_BASE_URL: ${TRUEFOUNDRY_BASE_URL:?set TRUEFOUNDRY_BASE_URL in .env}
+      # Optional by design: TrueForge serves anonymous sessions unless OIDC is
+      # configured, and the harness sends no Authorization header when empty.
+      TRUEFOUNDRY_API_KEY: ${TRUEFOUNDRY_API_KEY:-}
+      TRUEFORGE_MODEL: ${TRUEFORGE_MODEL:-google-gemini/gemini-3-6-flash}
+      TRUEFORGE_MCP_SERVER: ${TRUEFORGE_MCP_SERVER:-github}
+      COMPACTION_THRESHOLD: '50000'
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      POOL_MONITOR_URL: http://pool-monitor:8080
+      # Read-only, for rebuilding diffs in the approval view.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      STRICT_PREFLIGHT: ${STRICT_PREFLIGHT:-false}
+      NODE_EXTRA_CA_CERTS: ${CA_BUNDLE_IN_CONTAINER:-/etc/ssl/certs/ca-certificates.crt}
+    volumes:
+      - ${HOST_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}:${CA_BUNDLE_IN_CONTAINER:-/etc/ssl/certs/ca-certificates.crt}:ro
+    # Host ports are overridable: a local Daytona hardcodes localhost:3000 in
+    # its dashboard URLs, so it has to keep 3000 and the harness moves aside.
+    ports:
+      - '${HARNESS_HOST_PORT:-3000}:3000'
+      - '${HARNESS_WS_HOST_PORT:-3001}:3001'
+    networks: [patchforge-net]
+    depends_on:
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  checkpoint-gateway:
+    build:
+      context: ./services/checkpoint-gateway
+    environment:
+      # Read by Next's rewrites in the SERVER process, so these are in-network
+      # names and need no rebuild to change. The browser never sees them: it
+      # calls /api/pool/* and /api/harness/* on its own origin, which is what
+      # keeps CORS out of the picture entirely.
+      POOL_MONITOR_URL: http://pool-monitor:8080
+      HARNESS_URL: http://trueforge-harness:3000
+      # The trace socket cannot go through a rewrite. Left unset, the client
+      # derives it from the page host, which is right in most setups; set it
+      # when the harness is not reachable on the host serving this UI.
+      NEXT_PUBLIC_HARNESS_WS: ${PUBLIC_HARNESS_WS:-}
+      NEXT_PUBLIC_HARNESS_WS_PORT: ${HARNESS_WS_HOST_PORT:-3001}
+    ports: ['3002:3002']
+    networks: [patchforge-net]
+    depends_on: [trueforge-harness, pool-monitor]
