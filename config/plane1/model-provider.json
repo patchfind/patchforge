@@ -1,0 +1,18 @@
+{
+  "_comment": "PUT /api/v1/settings/model-providers. Verified against TrueForge 0.1.4.",
+  "_fqn": "Resulting model FQN is google-gemini/gemini-3-6-flash — provider name IS the type for well-known providers. This is the string TRUEFORGE_MODEL must hold.",
+  "manifest": {
+    "type": "google-gemini",
+    "auth": { "api_key": "${GEMINI_API_KEY}" },
+    "models": [
+      {
+        "model_id": "gemini-3-6-flash",
+        "name": "gemini-3-6-flash",
+        "properties": {
+          "context_length": 1048576,
+          "max_output_tokens": 8192
+        }
+      }
+    ]
+  }
+}

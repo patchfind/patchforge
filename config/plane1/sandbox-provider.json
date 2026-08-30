@@ -1,0 +1,16 @@
+{
+  "_comment": "PUT /api/v1/settings/sandbox-providers. Daytona Cloud only — see _daytona_only.",
+  "_daytona_only": "Daytona is the ONLY sandbox provider TrueForge supports today (docs/sandbox.mdx). The schema is strict and takes only an api_key, with no endpoint field.",
+  "_endpoint": "The endpoint is NOT set here. TrueForge builds the SDK client without an apiUrl, so the Daytona SDK falls back to DAYTONA_API_URL in the TrueForge process environment. Unset => Daytona Cloud. Set => a self-hosted server. Verified by interception. See intro.md 9.1.",
+  "_key_permissions": "The API key MUST have Snapshots write/create (and delete) permission, not just Sandboxes. On first configure TrueForge builds a release snapshot in your Daytona account and clones every sandbox from it. A key without snapshot permission fails at configure time even though it is otherwise valid.",
+  "_optional": "Skip this file entirely when running TrueForge with STANDALONE=true — the built-in local sandbox needs no provider row. See intro.md §3.",
+  "_all_fields_required": "The schema is .strict(); every field below must be present.",
+  "manifest": {
+    "type": "daytona",
+    "auth": { "api_key": "${DAYTONA_API_KEY}" },
+    "exec_timeout_ms": 600000,
+    "auto_stop_interval_in_minutes": 15,
+    "auto_archive_interval_in_minutes": 60,
+    "auto_delete_interval_in_minutes": 1440
+  }
+}

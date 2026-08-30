@@ -1,0 +1,54 @@
+# Plane 2 <- Plane 1 binding contract.
+# These are the only strings `trueforge-harness` needs; every credential stays
+# inside the TrueForge control plane (steps.md #3 — no secret leakage).
+apiVersion: trueforge.truefoundry.com/v1
+kind: HarnessBinding
+metadata:
+  name: patchforge-harness
+  workspace: patchforge
+spec:
+  # Provider name IS the type for well-known providers — verified via GET /api/v1/models.
+  model: google-gemini/gemini-3-6-flash
+  # No name to bind: the sandbox is a tenant-level singleton in TrueForge.
+  # The harness only sends `config.sandbox.enabled: true`.
+  sandboxProvider: null
+  connections:
+    - github
+  # Skill names come from SKILL_MAP in advisory-service and must match
+  # what is registered in TrueForge. See intro.md §4.
+  skillRegistry: git
+
+  contextCompactionThreshold: 50000
+
+  # Tool name as the MCP server advertises it (unprefixed) — this is what goes
+  # into `mcpServers[].requireApprovalForTools` on the session spec.
+  interceptTools:
+    - create_pull_request
+  interceptor:
+    stateStore: redis
+    redisUrlEnv: REDIS_URL
+    keyPrefix: "patchforge:interceptor:"
+    ttlSeconds: 86400
+    resumeOnBoot: true          # survives harness container restart
+
+  subagents:
+    - id: migration-specialist
+      displayName: Security Migration Specialist
+      role: >-
+        Read the pytest failure trace and the mounted skill guide, then apply the
+        minimal refactor that removes the vulnerability. Never widen scope beyond
+        the affected package.
+      tools: ["github-mcp:get_file_contents", "github-mcp:list_files", "sandbox:exec", "sandbox:write_file"]
+      maxIterations: 12
+    - id: qa-specialist
+      displayName: QA Specialist
+      role: >-
+        Run the sandbox test command, capture stdout/stderr verbatim, and report
+        pass/fail with the failing test ids. Do not edit source files.
+      tools: ["sandbox:exec"]
+      maxIterations: 8
+
+  streaming:
+    transport: websocket
+    port: 3001
+    events: [thinking, tool_call, tool_result, terminal_output, token_usage, interceptor_pause]

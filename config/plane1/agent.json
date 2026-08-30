@@ -1,0 +1,34 @@
+{
+  "_comment": "POST /api/v1/agents — the reusable agent for the Agents Library. This is the API behind 'Save Agent' in the TrueForge UI (quickstart step 7).",
+  "_auto": "trueforge-harness publishes this at boot and keeps it current; set REGISTER_AGENT_ON_BOOT=false to manage it by hand instead. Registration is idempotent: create on first run, update thereafter.",
+  "_skills": "A saved agent carries a FIXED skill list, so every registered skill is attached and the model chooses using their descriptions. The worker's default inline path instead scopes each session to the one skill the CVE needs, which is more deterministic. Set TRUEFORGE_AGENT_NAME to make the worker use this saved agent instead.",
+  "name": "patchforge-orchestrator",
+  "manifest": {
+    "model": {
+      "name": "google-gemini/gemini-3-6-flash",
+      "params": { "temperature": 0.1 }
+    },
+    "instructions": "See SAVED_AGENT_INSTRUCTIONS in services/trueforge-harness/src/prompts.ts — kept in code so it stays in step with the worker's own prompt.",
+    "mcp_servers": [
+      {
+        "name": "github",
+        "enable_tools": ["@all"],
+        "require_approval_for_tools": ["create_pull_request"],
+        "preload": true
+      }
+    ],
+    "skills": [
+      { "name": "pyyaml" }, { "name": "jinja2" }, { "name": "llama-index" },
+      { "name": "vllm" }, { "name": "ragas" }, { "name": "nemoguardrails" },
+      { "name": "arize-phoenix" }
+    ],
+    "config": {
+      "sandbox": { "enabled": true, "file_downloads": true },
+      "context_management": {
+        "compaction": { "enabled": true, "compaction_threshold_tokens": 50000 }
+      },
+      "dynamic_sub_agents": { "enabled": true },
+      "iteration_limit": 60
+    }
+  }
+}
