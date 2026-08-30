@@ -1,0 +1,19 @@
+{
+  "name": "@patchforge/pool-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repository registry, scheduled dependency scanning, and RabbitMQ task dispatch",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test src/*.test.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.5",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.13.1"
+  }
+}
